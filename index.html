@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>GPS 自動定位氣象鐘</title>
+    <title>專業版 GPS 氣象鐘</title>
     <script src="https://unpkg.com/lunar-javascript/lunar.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -19,17 +19,25 @@
             width: 100vw;
             overflow: hidden;
             padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+            /* 預留防燒屏位移容器 */
+            transition: transform 0.5s ease-in-out; 
         }
-        .top-info { font-size: 8vw; color: #ddd; text-align: center; }
+        #main-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-around;
+            height: 90%;
+            width: 100%;
+        }
+        .top-info { font-size: 7.5vw; color: #ddd; text-align: center; }
         .time-container { display: flex; align-items: center; justify-content: center; }
         .time-display { font-size: 50vw; font-weight: bold; line-height: 0.85; }
         .colon-sec-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 1vw; }
         .dot-top { width: 3.5vw; height: 3.5vw; background-color: #fff; border-radius: 50%; margin-bottom: 5vh; }
         .sec-bottom { font-size: 10vw; color: #aaa; font-weight: 500; font-family: monospace; }
-        
-        /* 底部資訊欄：加入位置顯示 */
         .bottom-info { font-size: 8.5vw; color: #00FF00; text-align: center; }
-        .location-tag { color: #00AAFF; margin-right: 10px; font-weight: bold; }
+        .location-tag { color: #00AAFF; margin-right: 8px; font-weight: bold; }
 
         @media (orientation: landscape) {
             .top-info { font-size: 8vh; }
@@ -41,22 +49,33 @@
     </style>
 </head>
 <body>
-    <div class="top-info" id="date-info">載入日期...</div>
-    <div class="time-container">
-        <span class="time-display" id="hours">00</span>
-        <div class="colon-sec-box">
-            <div class="dot-top"></div>
-            <div class="sec-bottom" id="seconds">00</div>
+    <div id="main-container">
+        <div class="top-info" id="date-info">載入中...</div>
+        <div class="time-container">
+            <span class="time-display" id="hours">00</span>
+            <div class="colon-sec-box">
+                <div class="dot-top"></div>
+                <div class="sec-bottom" id="seconds">00</div>
+            </div>
+            <span class="time-display" id="minutes">00</span>
         </div>
-        <span class="time-display" id="minutes">00</span>
-    </div>
-    <div class="bottom-info">
-        <span id="location-name" class="location-tag">定位中</span>
-        <span id="weather-desc">取得天氣...</span> 
-        <span id="temperature">--</span>°C / <span id="humidity">--</span>% RH
+        <div class="bottom-info">
+            <span id="location-name" class="location-tag">定位中</span>
+            <span id="weather-desc">取得天氣...</span> 
+            <span id="temperature">--</span>°C / <span id="humidity">--</span>% RH
+        </div>
     </div>
 
     <script>
+        // 1. 防燒屏位移功能
+        function pixelShift() {
+            const x = (Math.random() * 6 - 3).toFixed(1); // -3 到 3 像素位移
+            const y = (Math.random() * 6 - 3).toFixed(1);
+            document.body.style.transform = `translate(${x}px, ${y}px)`;
+        }
+        setInterval(pixelShift, 60000); // 每分鐘位移一次
+
+        // 2. 更新時鐘與日期
         function updateClock() {
             const now = new Date();
             const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -68,37 +87,34 @@
             document.getElementById('seconds').textContent = String(now.getSeconds()).padStart(2, '0');
         }
 
+        // 3. 獲取天氣與地理位置判定
         async function fetchWeather(lat, lon) {
             try {
-                // 同時抓取天氣與反向地理編碼 (這裡預設以座標判斷區域)
-                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`;
-                const res = await fetch(weatherUrl);
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`;
+                const res = await fetch(url);
                 const data = await res.json();
                 
-                // 簡易位置判斷 (您可以根據座標範圍自定義更多城市)
                 let city = "當前位置";
-                if (lat > 24 && lat < 24.3 && lon > 120.5 && lon < 120.8) city = "台中";
+                if (lat > 24.1 && lat < 24.3 && lon > 120.5 && lon < 120.8) city = "台中";
                 else if (lat > 24.9 && lat < 25.2) city = "台北";
-                else if (lat > 22.5 && lat < 22.8) city = "高雄";
-
-                const weatherMap = { 0: "晴朗", 1: "多雲", 2: "多雲", 3: "陰天", 45: "霧", 61: "小雨", 80: "陣雨", 95: "雷雨" };
                 
+                const weatherMap = { 0: "晴朗", 1: "多雲", 2: "多雲", 3: "陰天", 45: "霧", 61: "小雨", 80: "陣雨", 95: "雷雨" };
                 document.getElementById('location-name').textContent = city;
                 document.getElementById('temperature').textContent = Math.round(data.current.temperature_2m);
                 document.getElementById('humidity').textContent = data.current.relative_humidity_2m;
                 document.getElementById('weather-desc').textContent = weatherMap[data.current.weather_code] || "觀測中";
-            } catch (e) {
-                document.getElementById('weather-desc').textContent = "更新中";
-            }
+            } catch (e) { document.getElementById('weather-desc').textContent = "更新中"; }
         }
 
         function getPos() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    p => fetchWeather(p.coords.latitude, p.coords.longitude),
-                    () => fetchWeather(24.15, 120.68)
-                );
+                navigator.geolocation.getCurrentPosition(p => fetchWeather(p.coords.latitude, p.coords.longitude), () => fetchWeather(24.15, 120.68));
             } else { fetchWeather(24.15, 120.68); }
+        }
+
+        // 4. 防止休眠 (Wake Lock API)
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').catch(()=>{});
         }
 
         setInterval(updateClock, 1000); updateClock();
