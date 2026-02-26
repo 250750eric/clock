@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GPS 秒數動態時鐘</title>
+    <script src="https://unpkg.com/lunar-javascript/lunar.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            padding: env(safe-area-inset-top) 0 80px 0; /* 預留底部空間避開廣告 */
+        }
+
+        .top-info { font-size: 7vw; color: #ddd; text-align: center; }
+
+        /* 時間容器 */
+        .time-container { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+        
+        .time-display { 
+            font-size: 50vw; 
+            font-weight: bold; 
+            line-height: 0.85; 
+        }
+
+        /* 冒號與秒數組合 */
+        .colon-sec-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 1vw;
+            height: 100%;
+        }
+
+        .dot-top {
+            width: 3.5vw;
+            height: 3.5vw;
+            background-color: #fff;
+            border-radius: 50%;
+            margin-bottom: 5vh; /* 調整上下點間距 */
+        }
+
+        .sec-bottom {
+            font-size: 10vw; /* 下點變成的秒數大小 */
+            color: #aaa;
+            font-weight: 500;
+            font-family: monospace;
+        }
+
+        .bottom-info { 
+            font-size: 8vw; 
+            color: #00FF00; 
+            text-align: center; 
+            font-weight: 400;
+        }
+
+        /* 橫向模式調整 */
+        @media (orientation: landscape) {
+            .top-info { font-size: 8vh; }
+            .time-display { font-size: 62vh; }
+            .dot-top { width: 3.5vh; height: 3.5vh; margin-bottom: 6vh; }
+            .sec-bottom { font-size: 11vh; }
+            .bottom-info { font-size: 9vh; }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-info" id="date-info">載入日期...</div>
+
+    <div class="time-container">
+        <span class="time-display" id="hours">00</span>
+        <div class="colon-sec-box">
+            <div class="dot-top"></div>
+            <div class="sec-bottom" id="seconds">00</div>
+        </div>
+        <span class="time-display" id="minutes">00</span>
+    </div>
+
+    <div class="bottom-info">
+        <span id="weather-desc">定位中...</span> 
+        <span id="temperature">--</span>°C / 濕度 <span id="humidity">--</span>%
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            
+            const lunar = Lunar.fromDate(now);
+            document.getElementById('date-info').textContent = 
+                `${y}年${m}月${d}日 ${weekDays[now.getDay()]} 農曆${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+
+            let hh = now.getHours();
+            let mm = String(now.getMinutes()).padStart(2, '0');
+            let ss = String(now.getSeconds()).padStart(2, '0');
+
+            hh = hh % 12 || 12; // 12小時制
+            document.getElementById('hours').textContent = String(hh).padStart(2, '0');
+            document.getElementById('minutes').textContent = mm;
+            document.getElementById('seconds').textContent = ss;
+        }
+
+        async function fetchWeather(lat, lon) {
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                const temp = Math.round(data.current.temperature_2m);
+                const humi = data.current.relative_humidity_2m;
+                const code = data.current.weather_code;
+                
+                const weatherMap = { 0: "晴朗", 1: "多雲", 2: "多雲", 3: "陰天", 45: "霧", 61: "小雨", 80: "陣雨", 95: "雷雨" };
+                
+                document.getElementById('temperature').textContent = temp;
+                document.getElementById('humidity').textContent = humi;
+                document.getElementById('weather-desc').textContent = weatherMap[code] || "觀測中";
+            } catch (e) {
+                document.getElementById('weather-desc').textContent = "更新中";
+            }
+        }
+
+        function getPosition() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => fetchWeather(p.coords.latitude, p.coords.longitude),
+                    () => fetchWeather(24.15, 120.68) // 失敗則回歸台中
+                );
+            } else {
+                fetchWeather(24.15, 120.68);
+            }
+        }
+
+        setInterval(updateClock, 1000);
+        updateClock();
+        getPosition();
+        setInterval(getPosition, 1800000); // 30分鐘更新一次天氣
+    </script>
+</body>
+</html>
