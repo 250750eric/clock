@@ -156,7 +156,7 @@
             document.getElementById('date-str').innerText = now.toLocaleDateString('zh-TW', dateOptions).replace(/\//g, '年').replace('日', '日') + '日';
             document.getElementById('lunar-str').innerText = getLunar();
             
-            if (now.getMinutes() === 0 && now.getSeconds() === 0) speak(`現在時間${now.getHours()}點整`);
+            if (now.getMinutes() === 0 && now.getSeconds() === 0) speak(`現在時間為${now.getHours()}點整`);
         }
 
         setInterval(tick, 1000);
