@@ -3,115 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Eric's GPS 氣象鐘 Pro</title>
+    <title>GPS 氣象鐘 Pro</title>
     <style>
-        body { background-color: black; color: #FF8C00; font-family: Arial, sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; }
-        #clock-container { text-align: center; }
-        #date-lunar { font-size: 5vw; margin-bottom: 2vh; }
-        #time-container { display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        body { background-color: black; color: #FF8C00; font-family: 'Arial', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; }
+        #date-lunar { font-size: 5vw; margin-bottom: 10px; }
+        #clock-box { display: flex; align-items: center; justify-content: center; font-weight: bold; }
         #time-main { font-size: 28vw; line-height: 1; }
-        #colon { font-size: 25vw; padding: 0 10px; padding-bottom: 2vw; transition: opacity 0.2s; }
-        #seconds { font-size: 10vw; width: 12vw; text-align: left; align-self: flex-end; margin-bottom: 2.5vw; }
-        #weather { font-size: 6vw; margin-top: 2vh; color: #00FF00; }
-        #chime-btn { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; border: 2px solid #FF8C00; background: rgba(255, 140, 0, 0.1); color: #FF8C00; border-radius: 8px; display: flex; justify-content: center; align-items: center; font-size: 14px; font-weight: bold; cursor: pointer; }
-        #chime-btn.active { background: rgba(255, 140, 0, 0.6); color: white; }
+        #colon { font-size: 20vw; width: 5vw; text-align: center; padding-bottom: 2vw; }
+        #sec-box { font-size: 10vw; width: 12vw; align-self: flex-end; margin-bottom: 3vw; margin-left: 10px; }
+        #weather { font-size: 6vw; margin-top: 20px; color: #00FF00; }
+        #chime-btn { position: absolute; bottom: 30px; right: 30px; width: 65px; height: 65px; border: 2px solid #FF8C00; background: rgba(255, 140, 0, 0.1); color: #FF8C00; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; line-height: 1.2; }
+        #chime-btn.active { background: rgba(255, 140, 0, 0.5); color: white; }
     </style>
 </head>
-<body onclick="initAudio()">
+<body onclick="startAudioService()">
 
-    <div id="clock-container">
-        <div id="date-lunar">載入中...</div>
-        <div id="time-container">
-            <div id="time-main">00:00</div>
-            <div id="colon">:</div>
-            <div id="seconds">00</div>
-        </div>
-        <div id="weather">台中 定位中...</div>
+    <div id="date-lunar">載入中...</div>
+    <div id="clock-box">
+        <div id="time-main">00:00</div>
+        <div id="colon">:</div>
+        <div id="sec-box">00</div>
     </div>
+    <div id="weather">台中 定位中...</div>
 
     <div id="chime-btn" class="active" onclick="toggleChime(event)">報時<br>ON</div>
 
     <script>
         let isChimeEnabled = true;
         let lastHour = -1;
-        let audioCtx;
+        let audioStarted = false;
 
-        // 1. 初始化音訊環境 (點擊螢幕後生效)
-        function initAudio() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // 啟動語音服務
+        function startAudioService() {
+            if (audioStarted) return;
+            const msg = new SpeechSynthesisUtterance("語音報時服務已啟動");
+            msg.lang = 'zh-TW';
+            window.speechSynthesis.speak(msg);
+            audioStarted = true;
         }
 
-        // 2. 獲取真實農曆
-        function getLunarInfo(date) {
+        // 農曆轉換邏輯
+        function updateDate() {
+            const now = new Date();
             const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-            const solarDate = date.toLocaleDateString('zh-TW', options);
-            const lunarFormatter = new Intl.DateTimeFormat('zh-TW-u-ca-chinese', {day:'numeric', month:'long'});
-            const lunarDate = lunarFormatter.format(date);
-            return `${solarDate} 農曆${lunarDate}`;
-        }
-
-        // 3. 報時功能 (響鈴 + 語音)
-        function doChime(hour) {
-            if (!isChimeEnabled || !audioCtx) return;
-            
-            // 深夜模式 (23-07)
-            if (hour >= 23 || hour < 7) return;
-
-            // 叮一聲
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-
-            // 語音報時
-            setTimeout(() => {
-                const weather = document.getElementById('weather').innerText;
-                const msg = new SpeechSynthesisUtterance(`現在時間${hour}點整。${weather}`);
-                msg.lang = 'zh-TW';
-                window.speechSynthesis.speak(msg);
-            }, 800);
+            const solar = now.toLocaleDateString('zh-TW', options);
+            const lunar = new Intl.DateTimeFormat('zh-TW-u-ca-chinese', {day:'numeric', month:'long'}).format(now);
+            document.getElementById('date-lunar').innerText = `${solar} 農曆${lunar}`;
         }
 
         function toggleChime(e) {
             e.stopPropagation();
-            initAudio();
             isChimeEnabled = !isChimeEnabled;
             const btn = document.getElementById('chime-btn');
             btn.innerHTML = isChimeEnabled ? "報時<br>ON" : "報時<br>OFF";
             btn.classList.toggle('active');
-            
-            const msg = new SpeechSynthesisUtterance(isChimeEnabled ? "報時功能已開啟" : "報時功能已關閉");
+            const msg = new SpeechSynthesisUtterance(isChimeEnabled ? "開啟報時" : "關閉報時");
+            msg.lang = 'zh-TW';
+            window.speechSynthesis.speak(msg);
+        }
+
+        function announce(hour) {
+            if (!isChimeEnabled || hour < 7 || hour >= 23) return;
+            const weather = document.getElementById('weather').innerText;
+            const msg = new SpeechSynthesisUtterance(`現在時間${hour}點整。${weather}`);
             msg.lang = 'zh-TW';
             window.speechSynthesis.speak(msg);
         }
 
         function updateClock() {
             const now = new Date();
-            
-            // 更新農曆
-            document.getElementById('date-lunar').innerText = getLunarInfo(now);
-
-            // 更新時間
             const h = now.getHours();
             const m = String(now.getMinutes()).padStart(2, '0');
             const s = String(now.getSeconds()).padStart(2, '0');
+
             document.getElementById('time-main').innerText = `${h}:${m}`;
-            document.getElementById('seconds').innerText = s;
+            document.getElementById('sec-box').innerText = s;
+            document.getElementById('colon').style.visibility = (now.getSeconds() % 2 === 0) ? "visible" : "hidden";
 
-            // 秒點閃爍
-            document.getElementById('colon').style.opacity = (now.getSeconds() % 2 === 0) ? "1" : "0";
-
-            // 整點報時
             if (now.getMinutes() === 0 && now.getSeconds() === 0 && h !== lastHour) {
-                doChime(h);
+                announce(h);
                 lastHour = h;
             }
-
-            // 防燒屏位移
-            const offset = (now.getSeconds() % 2 === 0) ? "1px" : "-1px";
-            document.getElementById('clock-container').style.transform = `translate(${offset}px, ${offset}px)`;
+            if (s === "00") updateDate();
         }
 
         function updateLocation() {
@@ -124,6 +97,7 @@
 
         setInterval(updateClock, 1000);
         updateClock();
+        updateDate();
         updateLocation();
     </script>
 </body>
