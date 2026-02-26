@@ -3,146 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS Clock Clone</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-        body { 
-            background-color: black; 
-            color: #FF8C00; 
-            font-family: sans-serif; 
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            overflow: hidden; 
+        :root {
+            --bg-color: #000;
+            --text-color: #fff;
+            --accent-color: #00e5ff; /* 台中藍 */
+            --weather-color: #00ff41; /* 陰天綠 */
         }
 
-        /* 使用 vh 確保橫屏時字體不爆框 */
-        #date-lunar { font-size: 6vh; margin-bottom: 2vh; }
-        
-        #clock-container { display: flex; align-items: center; justify-content: center; }
-        #time-hm { font-size: 45vh; font-weight: bold; line-height: 1; }
-        
-        #colon-sec { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            width: 12vh; 
-            margin-left: 2vh; 
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
-        #upper-dot { font-size: 15vh; line-height: 1; transition: opacity 0.1s; }
-        #lower-sec { font-size: 18vh; font-weight: bold; line-height: 1; margin-top: -5vh; }
 
-        #weather { font-size: 7vh; margin-top: 3vh; color: #00FF00; font-weight: bold; }
+        /* 頂部日期與農曆 */
+        #date-row {
+            font-size: 5vh;
+            margin-bottom: 2vh;
+            letter-spacing: 2px;
+        }
 
-        #chime-btn { 
-            position: absolute; bottom: 5vh; right: 5vh; 
-            width: 12vh; height: 12vh; 
-            border: 2px solid #FF8C00; border-radius: 15%; 
-            background: rgba(255, 140, 0, 0.1); color: #FF8C00; 
-            display: flex; justify-content: center; align-items: center; 
-            font-size: 2.5vh; font-weight: bold; text-align: center;
+        /* 主時鐘容器 */
+        #clock-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .time-num {
+            font-size: 45vh; /* 針對橫屏極大化 */
+        }
+
+        /* 冒號與秒數定位 */
+        #colon-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 8vh;
+            height: 35vh;
+            position: relative;
+        }
+
+        .dot {
+            width: 2vh;
+            height: 2vh;
+            background-color: #fff;
+            border-radius: 50%;
+        }
+
+        #dot-top { margin-bottom: 6vh; }
+        
+        #seconds {
+            font-size: 8vh;
+            color: #888;
+            margin-top: 1vh;
+        }
+
+        /* 底部天氣資訊 */
+        #weather-row {
+            display: flex;
+            gap: 15px;
+            font-size: 6vh;
+            margin-top: 3vh;
+        }
+
+        #city { color: var(--accent-color); }
+        #weather-detail { color: var(--weather-color); }
+
+        /* 右下角報時開關 */
+        #voice-toggle {
+            position: absolute;
+            right: 2vw;
+            bottom: 4vh;
+            width: 8vh;
+            height: 8vh;
+            border: 2px solid #555;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.05);
+            cursor: pointer;
+        }
+
+        #toggle-status { font-size: 3vh; color: #ff9800; font-weight: bold; }
+        #toggle-label { font-size: 1.5vh; color: #888; }
+
+        /* 閃爍動畫 */
+        .blink { visibility: hidden; }
+
+        /* 點擊遮罩 (用於解鎖語音) */
+        #overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.8);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100; font-size: 4vh;
         }
     </style>
 </head>
 <body onclick="initAudio()">
 
-    <div id="date-lunar">載入日期中...</div>
-    <div id="clock-container">
-        <div id="time-hm">00:00</div>
-        <div id="colon-sec">
-            <div id="upper-dot">.</div>
-            <div id="lower-sec">00</div>
-        </div>
+    <div id="overlay">點擊螢幕解鎖語音報時</div>
+
+    <div id="date-row">
+        <span id="date-str">2026年02月26日 星期四</span>
+        <span id="lunar-str">農曆正月初十</span>
     </div>
-    <div id="weather">定位中...</div>
 
-    <div id="chime-btn" onclick="toggleChime(event)">報時<br>ON</div>
+    <div id="clock-container">
+        <div class="time-num" id="hh">03</div>
+        <div id="colon-box">
+            <div class="dot" id="dot-top"></div>
+            <div id="seconds">54</div>
+            <div class="dot" id="dot-bottom" style="visibility: hidden;"></div>
+        </div>
+        <div class="time-num" id="mm">55</div>
+    </div>
 
-<script>
-    let isChimeEnabled = true;
-    let audioUnlocked = false;
+    <div id="weather-row">
+        <div id="city">定位中...</div>
+        <div id="weather-detail">陰天 26°C / 65% RH</div>
+    </div>
 
-    function initAudio() {
-        if (!audioUnlocked) {
-            const msg = new SpeechSynthesisUtterance("報時系統已啟動");
-            msg.lang = 'zh-TW';
-            window.speechSynthesis.speak(msg);
-            audioUnlocked = true;
+    <div id="voice-toggle" onclick="toggleVoice(event)">
+        <div id="toggle-status">開</div>
+        <div id="toggle-label">語音</div>
+    </div>
+
+    <script>
+        let voiceEnabled = true;
+        let lastHour = -1;
+
+        // 初始化語音 (解除瀏覽器限制)
+        function initAudio() {
+            document.getElementById('overlay').style.display = 'none';
+            speak("語音系統已啟動");
         }
-    }
 
-    function toggleChime(e) {
-        e.stopPropagation();
-        isChimeEnabled = !isChimeEnabled;
-        document.getElementById('chime-btn').innerHTML = isChimeEnabled ? "報時<br>ON" : "報時<br>OFF";
-        const msg = new SpeechSynthesisUtterance(isChimeEnabled ? "開啟報時" : "關閉報時");
-        msg.lang = 'zh-TW';
-        window.speechSynthesis.speak(msg);
-    }
+        function speak(text) {
+            if (!voiceEnabled) return;
+            const synth = window.speechSynthesis;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW';
+            synth.speak(utterance);
+        }
 
-    // 真正的農曆中文轉換函式
-    function getLunarText(date) {
-        const lunarFormatter = new Intl.DateTimeFormat('zh-TW-u-ca-chinese', {month:'long', day:'numeric'});
-        let lunar = lunarFormatter.format(date);
-        // 確保顯示為 "正月十日" 而不是數字
-        return lunar.replace(/(\d+)/g, (n) => {
-            const chinese = ["零","一","二","三","四","五","六","七","八","九","十"];
-            return n.split('').map(d => chinese[parseInt(d)]).join('');
-        });
-    }
+        function toggleVoice(e) {
+            e.stopPropagation();
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('toggle-status');
+            btn.innerText = voiceEnabled ? "開" : "關";
+            btn.style.color = voiceEnabled ? "#ff9800" : "#555";
+            speak(voiceEnabled ? "開啟報時" : "關閉報時");
+        }
 
-    function update() {
-        const now = new Date();
-        
-        // 日期與中文農曆
-        const solarOptions = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-        const solar = now.toLocaleDateString('zh-TW', solarOptions);
-        document.getElementById('date-lunar').innerText = `${solar} 農曆${getLunarText(now)}`;
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
 
-        // 時間與秒數
-        const h = now.getHours();
-        const m = String(now.getMinutes()).padStart(2, '0');
-        const s = String(now.getSeconds()).padStart(2, '0');
-        document.getElementById('time-hm').innerText = `${h}:${m}`;
-        document.getElementById('lower-sec').innerText = s;
-        
-        // 點閃爍
-        document.getElementById('upper-dot').style.opacity = (now.getSeconds() % 2 === 0) ? "1" : "0.1";
+            document.getElementById('hh').innerText = h;
+            document.getElementById('mm').innerText = m;
+            document.getElementById('seconds').innerText = s;
 
-        // 整點報時
-        if (now.getMinutes() === 0 && now.getSeconds() === 0) {
-            if (isChimeEnabled && h >= 7 && h < 23) {
-                const weather = document.getElementById('weather').innerText;
-                const msg = new SpeechSynthesisUtterance(`現在時間${h}點整。${weather}`);
-                msg.lang = 'zh-TW';
-                window.speechSynthesis.speak(msg);
+            // 冒號點閃爍
+            document.getElementById('dot-top').classList.toggle('blink');
+
+            // 整點報時
+            if (now.getMinutes() === 0 && now.getSeconds() === 0 && lastHour !== now.getHours()) {
+                speak(`現在時間，${now.getHours()}點整`);
+                lastHour = now.getHours();
+            }
+
+            // 更新日期與農曆 (此處簡化農曆，實際建議串接庫或查表)
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('date-str').innerText = now.toLocaleDateString('zh-TW', options);
+        }
+
+        // 天氣 API 串接
+        async function fetchWeather() {
+            try {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
+                    const data = await res.json();
+                    
+                    const temp = Math.round(data.current.temperature_2m);
+                    const rh = data.current.relative_humidity_2m;
+                    const code = data.current.weather_code;
+                    
+                    // 簡易天氣代碼轉中文
+                    const weatherMap = { 0: "晴天", 1: "多雲", 2: "多雲", 3: "陰天", 45: "霧", 61: "小雨" };
+                    const desc = weatherMap[code] || "晴朗";
+
+                    document.getElementById('city').innerText = "本地區域"; 
+                    document.getElementById('weather-detail').innerText = `${desc} ${temp}°C / ${rh}% RH`;
+                });
+            } catch (e) {
+                console.error("天氣獲取失敗");
             }
         }
-    }
 
-    async function fetchWeather() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { latitude: lat, longitude: lon } = pos.coords;
-                try {
-                    const geo = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=zh-TW`).then(r => r.json());
-                    const area = geo.address.suburb || geo.address.district || geo.address.city || "台中";
-                    
-                    const weather = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m`).then(r => r.json());
-                    const temp = Math.round(weather.current.temperature_2m);
-                    const humi = weather.current.relative_humidity_2m;
-                    
-                    document.getElementById('weather').innerText = `${area} 晴朗 ${temp}°C / 濕度 ${humi}%`;
-                } catch(e) { document.getElementById('weather').innerText = "台中 更新中..."; }
-            });
-        }
-    }
-
-    setInterval(update, 1000);
-    setInterval(fetchWeather, 600000);
-    update();
-    fetchWeather();
-</script>
+        // 每秒更新
+        setInterval(updateClock, 1000);
+        // 每 30 分鐘更新天氣
+        setInterval(fetchWeather, 1800000);
+        
+        updateClock();
+        fetchWeather();
+    </script>
 </body>
 </html>
