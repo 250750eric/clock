@@ -3,41 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Final Pro</title>
+    <title>GPS Clock Auto-Precision</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: color 0.3s ease; }
-        #top-info-area { font-size: 4vh; margin-bottom: 2vh; cursor: pointer; text-align: center; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; }
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
         .time-num { font-size: 42vh; }
-        #colon-box { width: 10vh; height: 32vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #colon-box { width: 10vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
+        #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1.5vh; font-family: monospace; }
         
         @media (orientation: portrait) { 
             .time-num { font-size: 28vw; } 
-            #top-info-area { font-size: 5vw; margin-top: -5vh; } 
-            #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 10px !important; } 
-            #colon-box { width: 11vw; } 
-            #seconds { font-size: 9vw !important; } 
+            #top-info-area { font-size: 5.5vw; } 
+            #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 8px !important; } 
+            #seconds { font-size: 9vw !important; }
         }
 
-        .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
-        #dot-top { margin-bottom: 6vh; }
-        #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1.5vh; font-family: monospace; }
         #weather-row { display: flex; gap: 15px; font-size: 5.5vh; margin-top: 3vh; font-weight: bold; }
         #city { color: var(--accent-color); }
         #weather-detail { color: var(--weather-color); }
-        #voice-toggle { position: absolute; right: 5vw; bottom: 5vh; width: 75px; height: 75px; border: 1px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); cursor: pointer; border-radius: 12px; }
-        #toggle-status { font-size: 24px; color: #ff9800; }
-        #toggle-label { font-size: 14px; color: #888; }
-        .blink { visibility: hidden; }
-        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.98); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; text-align: center; font-size: 24px; }
+        
+        #voice-toggle { position: absolute; right: 5vw; bottom: 5vh; width: 75px; height: 75px; border: 1px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); border-radius: 12px; }
+        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; font-size: 24px; }
     </style>
 </head>
 <body onclick="unlockAudio()">
 
-    <div id="overlay">【 點擊解鎖功能 】</div>
+    <div id="overlay">【 點擊螢幕開啟精準定位 】</div>
 
-    <div id="top-info-area" onclick="changeThemeColor(event)">
+    <div id="top-info-area">
         <div id="date-str"></div>
         <div id="lunar-str"></div>
     </div>
@@ -45,104 +41,105 @@
     <div id="clock-container">
         <div class="time-num" id="hh">00</div>
         <div id="colon-box">
-            <div class="dot" id="dot-top"></div>
+            <div class="dot"></div>
             <div id="seconds">00</div>
         </div>
         <div class="time-num" id="mm">00</div>
     </div>
 
     <div id="weather-row">
-        <div id="city">定位中...</div>
-        <div id="weather-detail">更新中...</div>
+        <div id="city">精準定位中...</div>
+        <div id="weather-detail">獲取數據中...</div>
     </div>
 
-    <div id="voice-toggle" onclick="toggleVoice(event)">
-        <div id="toggle-status">開</div>
-        <div id="toggle-label">語音</div>
+    <div id="voice-toggle">
+        <div style="font-size: 24px; color: #ff9800;">開</div>
+        <div style="font-size: 14px; color: #888;">語音</div>
     </div>
 
     <script>
-        let voiceEnabled = true;
-        let colorIdx = 0;
-        const themes = ['#FFFFFF', '#00FF41', '#00E5FF', '#FF9800', '#FF4081'];
-        const synth = window.speechSynthesis;
         let lastHour = -1;
+        const synth = window.speechSynthesis;
 
         function unlockAudio() {
             document.getElementById('overlay').style.display = 'none';
-            const msg = new SpeechSynthesisUtterance("");
-            synth.speak(msg);
-            setTimeout(() => { speak("系統就緒"); }, 200);
-            initLocation();
+            speak("定位系統啟動");
+            autoLocate();
         }
 
-        function speak(text) {
-            if (!voiceEnabled || !text) return;
+        function speak(t) {
+            if (!t) return;
             synth.cancel();
-            const u = new SpeechSynthesisUtterance(text);
+            const u = new SpeechSynthesisUtterance(t);
             u.lang = 'zh-TW';
             synth.speak(u);
         }
 
-        function changeThemeColor(e) {
-            e.stopPropagation();
-            colorIdx = (colorIdx + 1) % themes.length;
-            document.body.style.setProperty('--main-color', themes[colorIdx]);
-            speak("切換顏色");
+        // --- 自動精準定位邏輯 ---
+        function autoLocate() {
+            const options = {
+                enableHighAccuracy: true, // 強制使用 GPS 晶片
+                timeout: 10000,           // 最多等 10 秒
+                maximumAge: 0             // 不使用緩存數據
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    // 抓到座標後，透過 BigDataCloud 轉換為中文詳細地址
+                    const { latitude, longitude } = pos.coords;
+                    await updateWeatherAndAddress(latitude, longitude);
+                },
+                (err) => {
+                    console.log("GPS 受阻，切換網路定位");
+                    fetchIPLocation();
+                },
+                options
+            );
         }
 
-        function toggleVoice(e) {
-            e.stopPropagation();
-            voiceEnabled = !voiceEnabled;
-            document.getElementById('toggle-status').innerText = voiceEnabled ? "開" : "關";
-            document.getElementById('toggle-status').style.color = voiceEnabled ? "#ff9800" : "#555";
+        async function fetchIPLocation() {
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                updateWeatherAndAddress(data.latitude, data.longitude);
+            } catch (e) {
+                document.getElementById('city').innerText = "台中市";
+            }
         }
 
-        // 自動農曆換日邏輯
+        async function updateWeatherAndAddress(lat, lon) {
+            try {
+                // 1. 抓取中文行政區
+                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
+                const geoData = await geoRes.json();
+                
+                // 優先顯示 市 + 區
+                const cityName = geoData.city || geoData.principalSubdivision || "";
+                const districtName = geoData.locality || geoData.district || "";
+                document.getElementById('city').innerText = `${cityName} ${districtName}`.trim() || "台中市 北區";
+
+                // 2. 抓取天氣
+                const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
+                const wData = await wRes.json();
+                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
+                const desc = weatherMap[wData.current.weather_code] || "多雲";
+                document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
+            } catch (e) {
+                console.error("更新失敗", e);
+            }
+        }
+
         function getLunarText(date) {
             const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'});
             let parts = formatter.format(date);
             const chnNum = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-            let lunar = parts.replace(/\d+/, (n) => {
+            return "農曆 " + parts.replace(/\d+/, n => {
                 let num = parseInt(n);
                 if (num <= 10) return "初" + chnNum[num];
                 if (num < 20) return "十" + chnNum[num % 10];
                 if (num === 20) return "二十";
                 return "廿" + chnNum[num % 10];
             });
-            return "農曆 " + lunar;
-        }
-
-        async function initLocation() {
-            // 優先嘗試 IP 定位獲取座標，再轉換為中文地址
-            try {
-                const ipRes = await fetch('https://ipapi.co/json/');
-                const ipData = await ipRes.json();
-                updateWeather(ipData.latitude, ipData.longitude);
-            } catch (e) {
-                // 若失敗則嘗試 GPS
-                navigator.geolocation.getCurrentPosition(
-                    p => updateWeather(p.coords.latitude, p.coords.longitude),
-                    err => { document.getElementById('city').innerText = "台中市 北區"; }
-                );
-            }
-        }
-
-        async function updateWeather(lat, lon) {
-            try {
-                // 1. 獲取中文詳細地名 (台中市 北區)
-                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
-                const geoData = await geoRes.json();
-                const cityStr = (geoData.city || "") + " " + (geoData.locality || "");
-                document.getElementById('city').innerText = cityStr || "台中市 北區";
-
-                // 2. 獲取天氣數據
-                const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
-                const wData = await wRes.json();
-                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
-                const desc = weatherMap[wData.current.weather_code] || "多雲";
-                document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
-            } catch (e) { console.error(e); }
         }
 
         function tick() {
@@ -154,17 +151,16 @@
             document.getElementById('hh').innerText = String(hh).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
-            document.getElementById('dot-top').classList.toggle('blink');
-
-            // 修正日期 (移除星期後的日字)
+            
             const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
             document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
             document.getElementById('lunar-str').innerText = getLunarText(now);
-            
+
+            // 每整點自動報時並重新校正定位與天氣
             if (mm === 0 && ss === 0 && hh !== lastHour) {
                 speak(`現在時間${hh}點整`);
                 lastHour = hh;
-                initLocation();
+                autoLocate();
             }
         }
 
