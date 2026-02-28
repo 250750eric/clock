@@ -4,36 +4,36 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Ultimate - Dual Mode</title>
+    <title>GPS Clock Pro - AM/PM Indicator</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         
-        /* 頂部日期區 */
         #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; }
         
-        /* 中央時間區 */
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
         .time-num { font-size: 42vh; }
-        #colon-box { width: 10vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
-        #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1.5vh; font-family: monospace; }
         
-        /* 天氣定位區 */
+        /* 秒數與標識區 */
+        #colon-box { width: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #ampm-indicator { 
+            height: 4vh; font-size: 3vh; color: var(--main-color); 
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
+        #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1vh; font-family: monospace; }
+        
         #weather-row { display: flex; gap: 15px; font-size: 5.5vh; margin-top: 3vh; font-weight: bold; }
         #city { color: var(--accent-color); }
         #weather-detail { color: var(--weather-color); }
 
-        /* 通用按鈕樣式 */
         .side-btn { 
             position: absolute; bottom: 5vh; width: 85px; height: 85px; 
             border: 1px solid #444; display: flex; flex-direction: column; 
             align-items: center; justify-content: center; background: rgba(255,255,255,0.1); 
             border-radius: 12px; cursor: pointer; z-index: 100;
         }
-        /* 左下角：12/24H 切換 */
         #format-toggle { left: 5vw; }
-        /* 右下角：報時開關 */
         #voice-toggle { right: 5vw; }
 
         #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; font-size: 24px; }
@@ -43,6 +43,7 @@
             #top-info-area { font-size: 5.5vw; } 
             #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 8px !important; } 
             #seconds { font-size: 9vw !important; }
+            #colon-box { width: 15vw; }
         }
     </style>
 </head>
@@ -58,7 +59,7 @@
     <div id="clock-container">
         <div class="time-num" id="hh">00</div>
         <div id="colon-box">
-            <div class="dot"></div>
+            <div id="ampm-indicator"><div class="dot"></div></div>
             <div id="seconds">00</div>
         </div>
         <div class="time-num" id="mm">00</div>
@@ -66,11 +67,11 @@
 
     <div id="weather-row">
         <div id="city">定位中...</div>
-        <div id="weather-detail">獲取數據中...</div>
+        <div id="weather-detail">數據更新中...</div>
     </div>
 
     <div id="format-toggle" class="side-btn" onclick="toggleFormat(event)">
-        <div id="f-status" style="font-size: 22px; color: #00e5ff;">24H</div>
+        <div id="f-status" style="font-size: 22px; color: #00e5ff;">24H制</div>
         <div style="font-size: 14px; color: #888;">進制</div>
     </div>
 
@@ -82,7 +83,7 @@
     <script>
         let lastHour = -1;
         let voiceEnabled = true;
-        let use24Hour = true; // 預設 24 小時制
+        let use24Hour = true;
         let isUpdatingWeather = false;
         const synth = window.speechSynthesis;
 
@@ -100,25 +101,21 @@
             if (!text) return;
             synth.cancel(); 
             setTimeout(() => {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'zh-TW';
-                utterance.rate = 0.95;
-                synth.speak(utterance);
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'zh-TW';
+                u.rate = 0.95;
+                synth.speak(u);
             }, 50);
         }
 
-        // 12/24H 切換邏輯
         function toggleFormat(event) {
             event.stopPropagation();
             use24Hour = !use24Hour;
-            const fStatus = document.getElementById('f-status');
-            const modeName = use24Hour ? "24小時制" : "12小時制";
-            fStatus.innerText = use24Hour ? "24H" : "12H";
-            speak("已切換為" + modeName, true);
-            tick(); // 立即更新畫面
+            document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
+            speak("已切換為" + (use24Hour ? "24小時制" : "12小時制"), true);
+            tick();
         }
 
-        // 報時開關邏輯 (含防斷音延遲)
         function toggleVoice(event) {
             event.stopPropagation();
             const statusDiv = document.getElementById('v-status');
@@ -131,10 +128,7 @@
                 speak("報時關閉", true);
                 statusDiv.innerText = "關";
                 statusDiv.style.color = "#888";
-                setTimeout(() => {
-                    voiceEnabled = false;
-                    synth.cancel();
-                }, 1200);
+                setTimeout(() => { voiceEnabled = false; synth.cancel(); }, 1200);
             }
         }
 
@@ -142,47 +136,29 @@
             if (isUpdatingWeather) return;
             isUpdatingWeather = true;
             navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    await updateWeatherAndAddress(pos.coords.latitude, pos.coords.longitude);
-                    isUpdatingWeather = false;
-                },
-                (err) => {
-                    fetch('https://ipapi.co/json/').then(r => r.json()).then(data => {
-                        updateWeatherAndAddress(data.latitude, data.longitude);
-                    }).finally(() => { isUpdatingWeather = false; });
-                },
+                async (p) => { await updateWeather(p.coords.latitude, p.coords.longitude); isUpdatingWeather = false; },
+                () => { fetch('https://ipapi.co/json/').then(r => r.json()).then(d => updateWeather(d.latitude, d.longitude)).finally(() => isUpdatingWeather = false); },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
         }
 
-        async function updateWeatherAndAddress(lat, lon) {
+        async function updateWeather(lat, lon) {
             try {
-                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
-                const geoData = await geoRes.json();
-                document.getElementById('city').innerText = `${geoData.city || ""} ${geoData.locality || ""}`.trim() || "台中市 北區";
-
-                const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
-                const wData = await wRes.json();
-                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
-                const desc = weatherMap[wData.current.weather_code] || "多雲";
-                document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
-            } catch (e) {
-                document.getElementById('city').innerText = "台中市 北區";
-                document.getElementById('weather-detail').innerText = "連線異常";
-            }
+                const geo = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`).then(r => r.json());
+                document.getElementById('city').innerText = `${geo.city || ""} ${geo.locality || ""}`.trim() || "台中市 北區";
+                const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`).then(r => r.json());
+                const map = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
+                document.getElementById('weather-detail').innerText = `${map[w.current.weather_code] || "多雲"} ${Math.round(w.current.temperature_2m)}°C / 濕度 ${w.current.relative_humidity_2m}%`;
+            } catch (e) { document.getElementById('city').innerText = "台中市 北區"; }
         }
 
-        function getLunarText(date) {
+        function getLunarText(d) {
             try {
-                const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'});
-                let parts = formatter.format(date);
-                const chnNum = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-                return "農曆 " + parts.replace(/\d+/, n => {
-                    let num = parseInt(n);
-                    if (num <= 10) return "初" + chnNum[num];
-                    if (num < 20) return "十" + chnNum[num % 10];
-                    if (num === 20) return "二十";
-                    return "廿" + chnNum[num % 10];
+                const f = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'}).format(d);
+                const c = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+                return "農曆 " + f.replace(/\d+/, n => {
+                    let v = parseInt(n);
+                    return v <= 10 ? "初"+c[v] : v < 20 ? "十"+c[v%10] : v==20 ? "二十" : "廿"+c[v%10];
                 });
             } catch (e) { return '農曆日期'; }
         }
@@ -190,32 +166,32 @@
         function tick() {
             const now = new Date();
             let hh = now.getHours();
-            const mm = now.getMinutes();
-            const ss = now.getSeconds();
+            const mm = now.getMinutes(), ss = now.getSeconds();
 
-            // 處理 12/24 小時制顯示
-            let displayHH = hh;
-            if (!use24Hour) {
-                displayHH = hh % 12;
-                if (displayHH === 0) displayHH = 12;
+            // 處理標識：24H顯示圓點，12H顯示上/下
+            const indicator = document.getElementById('ampm-indicator');
+            if (use24Hour) {
+                indicator.innerHTML = '<div class="dot"></div>';
+            } else {
+                indicator.innerText = hh >= 12 ? "下" : "上";
             }
+
+            let displayHH = use24Hour ? hh : (hh % 12 || 12);
 
             document.getElementById('hh').innerText = String(displayHH).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
             
-            const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-            document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
+            const weeks = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+            document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weeks[now.getDay()]}`;
             document.getElementById('lunar-str').innerText = getLunarText(now);
 
-            // 整點報時
             if (mm === 0 && ss === 0 && hh !== lastHour) {
                 speak(`現在時間${hh}點整`);
                 lastHour = hh;
                 autoLocate();
             }
         }
-
         setInterval(tick, 1000);
         tick();
     </script>
