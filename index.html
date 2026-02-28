@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Auto-Date</title>
+    <title>GPS Clock Final Pro</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: color 0.3s ease; }
@@ -38,8 +38,8 @@
     <div id="overlay">【 點擊解鎖功能 】</div>
 
     <div id="top-info-area" onclick="changeThemeColor(event)">
-        <div id="date-str">載入中...</div>
-        <div id="lunar-str">農曆計算中...</div>
+        <div id="date-str"></div>
+        <div id="lunar-str"></div>
     </div>
 
     <div id="clock-container">
@@ -53,7 +53,7 @@
 
     <div id="weather-row">
         <div id="city">定位中...</div>
-        <div id="weather-detail">獲取數據中...</div>
+        <div id="weather-detail">更新中...</div>
     </div>
 
     <div id="voice-toggle" onclick="toggleVoice(event)">
@@ -70,7 +70,6 @@
 
         function unlockAudio() {
             document.getElementById('overlay').style.display = 'none';
-            // 強制啟動 Hermit 的語音通道
             const msg = new SpeechSynthesisUtterance("");
             synth.speak(msg);
             setTimeout(() => { speak("系統就緒"); }, 200);
@@ -89,6 +88,7 @@
             e.stopPropagation();
             colorIdx = (colorIdx + 1) % themes.length;
             document.body.style.setProperty('--main-color', themes[colorIdx]);
+            speak("切換顏色");
         }
 
         function toggleVoice(e) {
@@ -98,40 +98,48 @@
             document.getElementById('toggle-status').style.color = voiceEnabled ? "#ff9800" : "#555";
         }
 
-        // --- 核心：自動計算農曆 ---
-        function getLunarDate(date) {
-            const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', { month: 'long', day: 'numeric' });
-            const parts = formatter.formatToParts(date);
-            let month = parts.find(p => p.type === 'month').value;
-            let day = parts.find(p => p.type === 'day').value;
-
-            // 數值轉換為中文格式
+        // 自動農曆換日邏輯
+        function getLunarText(date) {
+            const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'});
+            let parts = formatter.format(date);
             const chnNum = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-            let dayStr = "";
-            let d = parseInt(day);
-            if (d <= 10) dayStr = "初" + chnNum[d];
-            else if (d < 20) dayStr = "十" + chnNum[d % 10];
-            else if (d === 20) dayStr = "二十";
-            else if (d < 30) dayStr = "廿" + chnNum[d % 10];
-            else dayStr = "三十";
-
-            return `農曆 ${month}${dayStr}`;
+            let lunar = parts.replace(/\d+/, (n) => {
+                let num = parseInt(n);
+                if (num <= 10) return "初" + chnNum[num];
+                if (num < 20) return "十" + chnNum[num % 10];
+                if (num === 20) return "二十";
+                return "廿" + chnNum[num % 10];
+            });
+            return "農曆 " + lunar;
         }
 
         async function initLocation() {
+            // 優先嘗試 IP 定位獲取座標，再轉換為中文地址
             try {
-                const res = await fetch('https://ipapi.co/json/');
-                const d = await res.json();
-                updateWeather(d.latitude, d.longitude, d.city);
-            } catch (e) { document.getElementById('city').innerText = "台中市"; }
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                updateWeather(ipData.latitude, ipData.longitude);
+            } catch (e) {
+                // 若失敗則嘗試 GPS
+                navigator.geolocation.getCurrentPosition(
+                    p => updateWeather(p.coords.latitude, p.coords.longitude),
+                    err => { document.getElementById('city').innerText = "台中市 北區"; }
+                );
+            }
         }
 
-        async function updateWeather(lat, lon, cityName = null) {
+        async function updateWeather(lat, lon) {
             try {
+                // 1. 獲取中文詳細地名 (台中市 北區)
+                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
+                const geoData = await geoRes.json();
+                const cityStr = (geoData.city || "") + " " + (geoData.locality || "");
+                document.getElementById('city').innerText = cityStr || "台中市 北區";
+
+                // 2. 獲取天氣數據
                 const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
                 const wData = await wRes.json();
-                document.getElementById('city').innerText = cityName || "本地區域";
-                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨"};
+                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
                 const desc = weatherMap[wData.current.weather_code] || "多雲";
                 document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
             } catch (e) { console.error(e); }
@@ -148,10 +156,10 @@
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
             document.getElementById('dot-top').classList.toggle('blink');
 
-            // 顯示日期與自動計算的農曆
+            // 修正日期 (移除星期後的日字)
             const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
             document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
-            document.getElementById('lunar-str').innerText = getLunarDate(now);
+            document.getElementById('lunar-str').innerText = getLunarText(now);
             
             if (mm === 0 && ss === 0 && hh !== lastHour) {
                 speak(`現在時間${hh}點整`);
