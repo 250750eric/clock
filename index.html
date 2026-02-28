@@ -4,23 +4,25 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Elite - OLED Protector</title>
+    <title>GPS Clock Elite - Final Master</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; }
         
-        /* 增加一個平移容器用於防烙印 */
         #main-wrapper { 
             width: 100%; height: 100%; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; transition: transform 0.5s ease-in-out;
+            justify-content: center; align-items: center; transition: transform 0.8s ease-in-out;
         }
 
-        /* 日期區：增加點擊換色效果 */
-        #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; cursor: pointer; padding: 10px; border-radius: 10px; }
-        #top-info-area:active { background: rgba(255,255,255,0.1); }
+        /* 日期區與引導語 */
+        #top-info-area { font-size: 4vh; margin-bottom: 1vh; text-align: center; cursor: pointer; position: relative; }
+        #guide-tip { 
+            font-size: 1.8vh; color: #888; margin-bottom: 1vh; 
+            opacity: 0; transition: opacity 1s; font-weight: normal;
+        }
         
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
-        .time-num { font-size: 42vh; transition: color 0.3s; }
+        .time-num { font-size: 42vh; transition: color 0.5s; }
         
         #colon-box { width: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #ampm-indicator { height: 4vh; font-size: 3vh; display: flex; align-items: center; justify-content: center; }
@@ -57,6 +59,7 @@
             <div id="date-str"></div>
             <div id="lunar-str"></div>
         </div>
+        <div id="guide-tip">💡 點擊上方日期區域可切換配色</div>
 
         <div id="clock-container">
             <div class="time-num" id="hh">00</div>
@@ -84,11 +87,8 @@
     </div>
 
     <script>
-        let lastHour = -1;
-        let lastMinute = -1;
-        let voiceEnabled = true;
-        let use24Hour = true;
-        let isUpdatingWeather = false;
+        let lastHour = -1, lastMinute = -1;
+        let voiceEnabled = true, use24Hour = true, isUpdatingWeather = false;
         let colorIdx = 0;
         const colors = ['#ffffff', '#ff9800', '#00e5ff', '#00ff41', '#d500f9'];
         const synth = window.speechSynthesis;
@@ -99,10 +99,14 @@
                 overlay.style.display = 'none';
                 speak("系統啟動", true);
                 autoLocate();
+                
+                // 顯示提示，5秒後消失
+                const tip = document.getElementById('guide-tip');
+                tip.style.opacity = '1';
+                setTimeout(() => { tip.style.opacity = '0'; }, 5000);
             }
         }
 
-        // 點擊日期區域換色
         function changeColor(event) {
             event.stopPropagation();
             colorIdx = (colorIdx + 1) % colors.length;
@@ -181,10 +185,10 @@
             const now = new Date();
             let hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
 
-            // 防烙印邏輯：每分鐘微調顯示位置
+            // 防烙印位移
             if (mm !== lastMinute) {
-                const offsetX = Math.floor(Math.random() * 6) - 3; // -3px ~ 3px
-                const offsetY = Math.floor(Math.random() * 6) - 3;
+                const offsetX = Math.floor(Math.random() * 8) - 4; // -4px ~ 4px
+                const offsetY = Math.floor(Math.random() * 8) - 4;
                 document.getElementById('main-wrapper').style.transform = `translate(${offsetX}px, ${offsetY}px)`;
                 lastMinute = mm;
             }
