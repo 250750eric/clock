@@ -2,11 +2,13 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Auto-Precision</title>
+    <title>GPS Clock Final - Fixed Voice Button</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        
         #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; }
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
         .time-num { font-size: 42vh; }
@@ -14,24 +16,31 @@
         .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
         #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1.5vh; font-family: monospace; }
         
+        #weather-row { display: flex; gap: 15px; font-size: 5.5vh; margin-top: 3vh; font-weight: bold; }
+        #city { color: var(--accent-color); }
+        #weather-detail { color: var(--weather-color); }
+
+        /* 右下角開關按鈕樣式 */
+        #voice-toggle { 
+            position: absolute; right: 5vw; bottom: 5vh; width: 80px; height: 80px; 
+            border: 1px solid #444; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; background: rgba(255,255,255,0.1); 
+            border-radius: 12px; cursor: pointer; z-index: 100;
+        }
+
+        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; font-size: 24px; }
+
         @media (orientation: portrait) { 
             .time-num { font-size: 28vw; } 
             #top-info-area { font-size: 5.5vw; } 
             #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 8px !important; } 
             #seconds { font-size: 9vw !important; }
         }
-
-        #weather-row { display: flex; gap: 15px; font-size: 5.5vh; margin-top: 3vh; font-weight: bold; }
-        #city { color: var(--accent-color); }
-        #weather-detail { color: var(--weather-color); }
-        
-        #voice-toggle { position: absolute; right: 5vw; bottom: 5vh; width: 75px; height: 75px; border: 1px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); border-radius: 12px; }
-        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; font-size: 24px; }
     </style>
 </head>
 <body onclick="unlockAudio()">
 
-    <div id="overlay">【 點擊螢幕開啟精準定位 】</div>
+    <div id="overlay">【 點擊螢幕開啟精準報時 】</div>
 
     <div id="top-info-area">
         <div id="date-str"></div>
@@ -52,81 +61,90 @@
         <div id="weather-detail">獲取數據中...</div>
     </div>
 
-    <div id="voice-toggle">
-        <div style="font-size: 24px; color: #ff9800;">開</div>
+    <div id="voice-toggle" onclick="toggleVoice(event)">
+        <div id="v-status" style="font-size: 24px; color: #ff9800;">開</div>
         <div style="font-size: 14px; color: #888;">語音</div>
     </div>
 
     <script>
         let lastHour = -1;
+        let voiceEnabled = true; // 預設語音開啟
         const synth = window.speechSynthesis;
 
+        // 解鎖主程式
         function unlockAudio() {
-            document.getElementById('overlay').style.display = 'none';
-            speak("定位系統啟動");
-            autoLocate();
+            const overlay = document.getElementById('overlay');
+            if (overlay.style.display !== 'none') {
+                overlay.style.display = 'none';
+                // 激活語音與定位
+                const u = new SpeechSynthesisUtterance("");
+                synth.speak(u);
+                speak("系統啟動，開始定位");
+                autoLocate();
+            }
+        }
+
+        // 專門處理語音開關
+        function toggleVoice(event) {
+            event.stopPropagation(); // 阻止點擊按鈕觸發 body 的解鎖動作
+            voiceEnabled = !voiceEnabled;
+            
+            const statusText = document.getElementById('v-status');
+            if (voiceEnabled) {
+                statusText.innerText = "開";
+                statusText.style.color = "#ff9800";
+                speak("語音已開啟");
+            } else {
+                speak("語音已關閉");
+                statusText.innerText = "關";
+                statusText.style.color = "#888";
+                // 延時清空語音，確保「已關閉」能說完
+                setTimeout(() => { synth.cancel(); }, 800);
+            }
         }
 
         function speak(t) {
-            if (!t) return;
+            if (!voiceEnabled || !t) return;
             synth.cancel();
             const u = new SpeechSynthesisUtterance(t);
             u.lang = 'zh-TW';
             synth.speak(u);
         }
 
-        // --- 自動精準定位邏輯 ---
+        // 定位邏輯
         function autoLocate() {
-            const options = {
-                enableHighAccuracy: true, // 強制使用 GPS 晶片
-                timeout: 10000,           // 最多等 10 秒
-                maximumAge: 0             // 不使用緩存數據
-            };
-
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
-                    // 抓到座標後，透過 BigDataCloud 轉換為中文詳細地址
-                    const { latitude, longitude } = pos.coords;
-                    await updateWeatherAndAddress(latitude, longitude);
+                    await updateWeatherAndAddress(pos.coords.latitude, pos.coords.longitude);
                 },
                 (err) => {
-                    console.log("GPS 受阻，切換網路定位");
-                    fetchIPLocation();
+                    // 若 GPS 失敗則嘗試 IP 定位
+                    fetch('https://ipapi.co/json/').then(r => r.json()).then(data => {
+                        updateWeatherAndAddress(data.latitude, data.longitude);
+                    }).catch(() => {
+                        document.getElementById('city').innerText = "台中市 北區";
+                    });
                 },
-                options
+                { enableHighAccuracy: true, timeout: 10000 }
             );
-        }
-
-        async function fetchIPLocation() {
-            try {
-                const res = await fetch('https://ipapi.co/json/');
-                const data = await res.json();
-                updateWeatherAndAddress(data.latitude, data.longitude);
-            } catch (e) {
-                document.getElementById('city').innerText = "台中市";
-            }
         }
 
         async function updateWeatherAndAddress(lat, lon) {
             try {
-                // 1. 抓取中文行政區
+                // 1. 中文地名
                 const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
                 const geoData = await geoRes.json();
-                
-                // 優先顯示 市 + 區
                 const cityName = geoData.city || geoData.principalSubdivision || "";
                 const districtName = geoData.locality || geoData.district || "";
                 document.getElementById('city').innerText = `${cityName} ${districtName}`.trim() || "台中市 北區";
 
-                // 2. 抓取天氣
+                // 2. 天氣數據
                 const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
                 const wData = await wRes.json();
                 const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨", 95:"雷雨"};
                 const desc = weatherMap[wData.current.weather_code] || "多雲";
                 document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
-            } catch (e) {
-                console.error("更新失敗", e);
-            }
+            } catch (e) { console.error(e); }
         }
 
         function getLunarText(date) {
@@ -144,9 +162,7 @@
 
         function tick() {
             const now = new Date();
-            const hh = now.getHours();
-            const mm = now.getMinutes();
-            const ss = now.getSeconds();
+            const hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
 
             document.getElementById('hh').innerText = String(hh).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
@@ -156,7 +172,7 @@
             document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
             document.getElementById('lunar-str').innerText = getLunarText(now);
 
-            // 每整點自動報時並重新校正定位與天氣
+            // 整點報時
             if (mm === 0 && ss === 0 && hh !== lastHour) {
                 speak(`現在時間${hh}點整`);
                 lastHour = hh;
