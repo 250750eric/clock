@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock AI Combined Final</title>
+    <title>GPS Clock Final Stable</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
@@ -44,7 +44,7 @@
 
     <div id="voice-toggle" onclick="toggleVoice(event)">
         <div id="v-status" style="font-size: 24px; color: #ff9800;">開</div>
-        <div style="font-size: 14px; color: #888;">語音</div>
+        <div style="font-size: 14px; color: #888;">報時</div>
     </div>
 
     <script>
@@ -62,42 +62,48 @@
             }
         }
 
-        // 吸收建議：更穩定的語音播放邏輯
         function speak(text, force = false) {
             if (!voiceEnabled && !force) return;
             if (!text) return;
-            
-            synth.cancel(); // 立即中斷前一個
-            
+            synth.cancel(); 
             setTimeout(() => {
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'zh-TW';
-                utterance.rate = 0.95;
+                utterance.rate = 0.9; // 稍微放慢一點點，聽起來更清楚
                 synth.speak(utterance);
             }, 50);
         }
 
+        // 核心修正：確保「報時關閉」四個字完整吐出
         function toggleVoice(event) {
             event.stopPropagation();
-            voiceEnabled = !voiceEnabled;
             const statusDiv = document.getElementById('v-status');
             
-            if (voiceEnabled) {
+            if (!voiceEnabled) {
+                // 開啟
+                voiceEnabled = true;
                 statusDiv.innerText = "開";
                 statusDiv.style.color = "#ff9800";
-                speak("語音已開啟", true);
+                speak("報時開啟", true);
             } else {
+                // 關閉：立即先說，延遲才執行 cancel
+                speak("報時關閉", true);
+                
+                // 變更介面顯示
                 statusDiv.innerText = "關";
                 statusDiv.style.color = "#888";
-                speak("報時關閉", true);
-                setTimeout(() => synth.cancel(), 800);
+                
+                // 給它 1.2 秒的時間把話說完，說完後才正式停止語音功能
+                setTimeout(() => {
+                    voiceEnabled = false;
+                    synth.cancel();
+                }, 1200);
             }
         }
 
         function autoLocate() {
-            if (isUpdatingWeather) return; // 吸收建議：避免重複更新
+            if (isUpdatingWeather) return;
             isUpdatingWeather = true;
-
             navigator.geolocation.getCurrentPosition(
                 async (pos) => {
                     await updateWeatherAndAddress(pos.coords.latitude, pos.coords.longitude);
@@ -129,7 +135,6 @@
             }
         }
 
-        // 修正：使用正確的農曆轉換 (拒絕另一位 AI 的錯誤算法)
         function getLunarText(date) {
             try {
                 const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', {day:'numeric', month:'long'});
@@ -148,22 +153,18 @@
         function tick() {
             const now = new Date();
             const hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
-
             document.getElementById('hh').innerText = String(hh).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
-            
             const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
             document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
             document.getElementById('lunar-str').innerText = getLunarText(now);
-
             if (mm === 0 && ss === 0 && hh !== lastHour) {
                 speak(`現在時間${hh}點整`);
                 lastHour = hh;
                 autoLocate();
             }
         }
-
         setInterval(tick, 1000);
         tick();
     </script>
