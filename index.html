@@ -3,31 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Final Fix</title>
+    <title>GPS Clock Auto-Date</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: color 0.3s ease; }
         #top-info-area { font-size: 4vh; margin-bottom: 2vh; cursor: pointer; text-align: center; }
-        #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 1; }
-        .time-num { font-size: 40vh; }
-        #colon-box { width: 10vh; height: 30vh; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-        @media (orientation: portrait) { .time-num { font-size: 28vw; } #top-info-area { font-size: 5vw; margin-top: -5vh; } #weather-row { font-size: 6vw !important; flex-direction: column; align-items: center; gap: 8px !important; } #colon-box { width: 10vw; } #seconds { font-size: 8vw !important; } }
-        .dot { width: 1.5vh; height: 1.5vh; background-color: currentColor; border-radius: 50%; }
-        #dot-top { margin-bottom: 5vh; }
-        #seconds { font-size: 8vh; opacity: 0.6; margin-top: 1vh; font-family: monospace; }
-        #weather-row { display: flex; gap: 20px; font-size: 5vh; margin-top: 3vh; }
+        #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
+        .time-num { font-size: 42vh; }
+        #colon-box { width: 10vh; height: 32vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        @media (orientation: portrait) { 
+            .time-num { font-size: 28vw; } 
+            #top-info-area { font-size: 5vw; margin-top: -5vh; } 
+            #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 10px !important; } 
+            #colon-box { width: 11vw; } 
+            #seconds { font-size: 9vw !important; } 
+        }
+
+        .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
+        #dot-top { margin-bottom: 6vh; }
+        #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1.5vh; font-family: monospace; }
+        #weather-row { display: flex; gap: 15px; font-size: 5.5vh; margin-top: 3vh; font-weight: bold; }
         #city { color: var(--accent-color); }
         #weather-detail { color: var(--weather-color); }
-        #voice-toggle { position: absolute; right: 5vw; bottom: 5vh; width: 70px; height: 70px; border: 1px solid #555; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); cursor: pointer; }
-        #toggle-status { font-size: 20px; color: #ff9800; }
-        #toggle-label { font-size: 12px; color: #888; }
+        #voice-toggle { position: absolute; right: 5vw; bottom: 5vh; width: 75px; height: 75px; border: 1px solid #444; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); cursor: pointer; border-radius: 12px; }
+        #toggle-status { font-size: 24px; color: #ff9800; }
+        #toggle-label { font-size: 14px; color: #888; }
         .blink { visibility: hidden; }
-        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; text-align: center; font-size: 24px; padding: 20px; }
+        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.98); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; text-align: center; font-size: 24px; }
     </style>
 </head>
 <body onclick="unlockAudio()">
 
-    <div id="overlay">點擊螢幕解鎖語音與定位功能</div>
+    <div id="overlay">【 點擊解鎖功能 】</div>
 
     <div id="top-info-area" onclick="changeThemeColor(event)">
         <div id="date-str">載入中...</div>
@@ -44,8 +52,8 @@
     </div>
 
     <div id="weather-row">
-        <div id="city">偵測中...</div>
-        <div id="weather-detail">更新中...</div>
+        <div id="city">定位中...</div>
+        <div id="weather-detail">獲取數據中...</div>
     </div>
 
     <div id="voice-toggle" onclick="toggleVoice(event)">
@@ -58,18 +66,21 @@
         let colorIdx = 0;
         const themes = ['#FFFFFF', '#00FF41', '#00E5FF', '#FF9800', '#FF4081'];
         const synth = window.speechSynthesis;
-        let hasLocation = false;
+        let lastHour = -1;
 
         function unlockAudio() {
             document.getElementById('overlay').style.display = 'none';
-            speak("系統已啟動");
+            // 強制啟動 Hermit 的語音通道
+            const msg = new SpeechSynthesisUtterance("");
+            synth.speak(msg);
+            setTimeout(() => { speak("系統就緒"); }, 200);
             initLocation();
         }
 
-        function speak(t) {
-            if (!voiceEnabled) return;
+        function speak(text) {
+            if (!voiceEnabled || !text) return;
             synth.cancel();
-            const u = new SpeechSynthesisUtterance(t);
+            const u = new SpeechSynthesisUtterance(text);
             u.lang = 'zh-TW';
             synth.speak(u);
         }
@@ -87,76 +98,66 @@
             document.getElementById('toggle-status').style.color = voiceEnabled ? "#ff9800" : "#555";
         }
 
-        // 定位初始化：GPS 與 IP 雙管齊下
-        async function initLocation() {
-            // 超時機制：5秒後若 GPS 沒反應就改用 IP 定位
-            const timeout = setTimeout(() => {
-                if (!hasLocation) {
-                    console.log("GPS 超時，切換至 IP 定位");
-                    fetchByIP();
-                }
-            }, 5000);
+        // --- 核心：自動計算農曆 ---
+        function getLunarDate(date) {
+            const formatter = new Intl.DateTimeFormat('zh-u-ca-chinese', { month: 'long', day: 'numeric' });
+            const parts = formatter.formatToParts(date);
+            let month = parts.find(p => p.type === 'month').value;
+            let day = parts.find(p => p.type === 'day').value;
 
-            navigator.geolocation.getCurrentPosition(
-                p => {
-                    clearTimeout(timeout);
-                    hasLocation = true;
-                    updateWeather(p.coords.latitude, p.coords.longitude);
-                },
-                e => {
-                    clearTimeout(timeout);
-                    if (!hasLocation) fetchByIP();
-                },
-                { timeout: 10000 }
-            );
+            // 數值轉換為中文格式
+            const chnNum = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+            let dayStr = "";
+            let d = parseInt(day);
+            if (d <= 10) dayStr = "初" + chnNum[d];
+            else if (d < 20) dayStr = "十" + chnNum[d % 10];
+            else if (d === 20) dayStr = "二十";
+            else if (d < 30) dayStr = "廿" + chnNum[d % 10];
+            else dayStr = "三十";
+
+            return `農曆 ${month}${dayStr}`;
         }
 
-        async function fetchByIP() {
+        async function initLocation() {
             try {
-                const res = await fetch('http://ip-api.com/json/?lang=zh-TW');
+                const res = await fetch('https://ipapi.co/json/');
                 const d = await res.json();
-                if (d.status === "success") {
-                    hasLocation = true;
-                    updateWeather(d.lat, d.lon, d.city);
-                }
-            } catch (e) { document.getElementById('city').innerText = "定位失敗"; }
+                updateWeather(d.latitude, d.longitude, d.city);
+            } catch (e) { document.getElementById('city').innerText = "台中市"; }
         }
 
         async function updateWeather(lat, lon, cityName = null) {
             try {
                 const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
                 const wData = await wRes.json();
-                
-                if (!cityName) {
-                    const cRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`);
-                    const cData = await cRes.json();
-                    cityName = cData.locality || cData.city || "本地區域";
-                }
-
-                document.getElementById('city').innerText = cityName;
-                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"有霧", 61:"小雨", 80:"陣雨", 95:"雷雨"};
+                document.getElementById('city').innerText = cityName || "本地區域";
+                const weatherMap = {0:"晴朗", 1:"晴", 2:"多雲", 3:"陰天", 45:"霧", 61:"小雨"};
                 const desc = weatherMap[wData.current.weather_code] || "多雲";
                 document.getElementById('weather-detail').innerText = `${desc} ${Math.round(wData.current.temperature_2m)}°C / 濕度 ${wData.current.relative_humidity_2m}%`;
             } catch (e) { console.error(e); }
         }
 
-        function getLunar() {
-            // 簡易 2026/2/26 農曆邏輯
-            return "農曆 正月初十";
-        }
-
         function tick() {
             const now = new Date();
-            document.getElementById('hh').innerText = String(now.getHours()).padStart(2, '0');
-            document.getElementById('mm').innerText = String(now.getMinutes()).padStart(2, '0');
-            document.getElementById('seconds').innerText = String(now.getSeconds()).padStart(2, '0');
+            const hh = now.getHours();
+            const mm = now.getMinutes();
+            const ss = now.getSeconds();
+
+            document.getElementById('hh').innerText = String(hh).padStart(2, '0');
+            document.getElementById('mm').innerText = String(mm).padStart(2, '0');
+            document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
             document.getElementById('dot-top').classList.toggle('blink');
 
-            const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long' };
-            document.getElementById('date-str').innerText = now.toLocaleDateString('zh-TW', dateOptions).replace(/\//g, '年').replace('日', '日') + '日';
-            document.getElementById('lunar-str').innerText = getLunar();
+            // 顯示日期與自動計算的農曆
+            const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+            document.getElementById('date-str').innerText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
+            document.getElementById('lunar-str').innerText = getLunarDate(now);
             
-            if (now.getMinutes() === 0 && now.getSeconds() === 0) speak(`現在時間為${now.getHours()}點整`);
+            if (mm === 0 && ss === 0 && hh !== lastHour) {
+                speak(`現在時間${hh}點整`);
+                lastHour = hh;
+                initLocation();
+            }
         }
 
         setInterval(tick, 1000);
@@ -164,4 +165,3 @@
     </script>
 </body>
 </html>
-
