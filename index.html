@@ -4,22 +4,26 @@
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Clock Pro - AM/PM Indicator</title>
+    <title>GPS Clock Elite - OLED Protector</title>
     <style>
         :root { --bg-color: #000; --main-color: #fff; --accent-color: #00e5ff; --weather-color: #00ff41; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--bg-color); color: var(--main-color); font-family: sans-serif; overflow: hidden; }
         
-        #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; }
+        /* 增加一個平移容器用於防烙印 */
+        #main-wrapper { 
+            width: 100%; height: 100%; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; transition: transform 0.5s ease-in-out;
+        }
+
+        /* 日期區：增加點擊換色效果 */
+        #top-info-area { font-size: 4vh; margin-bottom: 2vh; text-align: center; cursor: pointer; padding: 10px; border-radius: 10px; }
+        #top-info-area:active { background: rgba(255,255,255,0.1); }
         
         #clock-container { display: flex; align-items: center; font-weight: bold; line-height: 0.9; }
-        .time-num { font-size: 42vh; }
+        .time-num { font-size: 42vh; transition: color 0.3s; }
         
-        /* 秒數與標識區 */
         #colon-box { width: 12vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #ampm-indicator { 
-            height: 4vh; font-size: 3vh; color: var(--main-color); 
-            display: flex; align-items: center; justify-content: center;
-        }
+        #ampm-indicator { height: 4vh; font-size: 3vh; display: flex; align-items: center; justify-content: center; }
         .dot { width: 1.8vh; height: 1.8vh; background-color: currentColor; border-radius: 50%; }
         #seconds { font-size: 9vh; opacity: 0.6; margin-top: 1vh; font-family: monospace; }
         
@@ -30,20 +34,17 @@
         .side-btn { 
             position: absolute; bottom: 5vh; width: 85px; height: 85px; 
             border: 1px solid #444; display: flex; flex-direction: column; 
-            align-items: center; justify-content: center; background: rgba(255,255,255,0.1); 
+            align-items: center; justify-content: center; background: rgba(0,0,0,0.5); 
             border-radius: 12px; cursor: pointer; z-index: 100;
         }
         #format-toggle { left: 5vw; }
         #voice-toggle { right: 5vw; }
-
         #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); display: flex; justify-content: center; align-items: center; z-index: 9999; color: #fff; font-size: 24px; }
 
         @media (orientation: portrait) { 
-            .time-num { font-size: 28vw; } 
-            #top-info-area { font-size: 5.5vw; } 
+            .time-num { font-size: 28vw; } #top-info-area { font-size: 5.5vw; } 
             #weather-row { font-size: 6.5vw !important; flex-direction: column; align-items: center; gap: 8px !important; } 
-            #seconds { font-size: 9vw !important; }
-            #colon-box { width: 15vw; }
+            #seconds { font-size: 9vw !important; } #colon-box { width: 15vw; }
         }
     </style>
 </head>
@@ -51,23 +52,25 @@
 
     <div id="overlay">【 點擊螢幕開啟精準報時 】</div>
 
-    <div id="top-info-area">
-        <div id="date-str"></div>
-        <div id="lunar-str"></div>
-    </div>
-
-    <div id="clock-container">
-        <div class="time-num" id="hh">00</div>
-        <div id="colon-box">
-            <div id="ampm-indicator"><div class="dot"></div></div>
-            <div id="seconds">00</div>
+    <div id="main-wrapper">
+        <div id="top-info-area" onclick="changeColor(event)">
+            <div id="date-str"></div>
+            <div id="lunar-str"></div>
         </div>
-        <div class="time-num" id="mm">00</div>
-    </div>
 
-    <div id="weather-row">
-        <div id="city">定位中...</div>
-        <div id="weather-detail">數據更新中...</div>
+        <div id="clock-container">
+            <div class="time-num" id="hh">00</div>
+            <div id="colon-box">
+                <div id="ampm-indicator"><div class="dot"></div></div>
+                <div id="seconds">00</div>
+            </div>
+            <div class="time-num" id="mm">00</div>
+        </div>
+
+        <div id="weather-row">
+            <div id="city">定位中...</div>
+            <div id="weather-detail">數據更新中...</div>
+        </div>
     </div>
 
     <div id="format-toggle" class="side-btn" onclick="toggleFormat(event)">
@@ -82,9 +85,12 @@
 
     <script>
         let lastHour = -1;
+        let lastMinute = -1;
         let voiceEnabled = true;
         let use24Hour = true;
         let isUpdatingWeather = false;
+        let colorIdx = 0;
+        const colors = ['#ffffff', '#ff9800', '#00e5ff', '#00ff41', '#d500f9'];
         const synth = window.speechSynthesis;
 
         function unlockAudio() {
@@ -94,6 +100,14 @@
                 speak("系統啟動", true);
                 autoLocate();
             }
+        }
+
+        // 點擊日期區域換色
+        function changeColor(event) {
+            event.stopPropagation();
+            colorIdx = (colorIdx + 1) % colors.length;
+            document.documentElement.style.setProperty('--main-color', colors[colorIdx]);
+            speak("切換配色", true);
         }
 
         function speak(text, force = false) {
@@ -112,7 +126,7 @@
             event.stopPropagation();
             use24Hour = !use24Hour;
             document.getElementById('f-status').innerText = use24Hour ? "24H制" : "12H制";
-            speak("已切換為" + (use24Hour ? "24小時制" : "12小時制"), true);
+            speak("切換" + (use24Hour ? "24小時" : "12小時"), true);
             tick();
         }
 
@@ -165,19 +179,21 @@
 
         function tick() {
             const now = new Date();
-            let hh = now.getHours();
-            const mm = now.getMinutes(), ss = now.getSeconds();
+            let hh = now.getHours(), mm = now.getMinutes(), ss = now.getSeconds();
 
-            // 處理標識：24H顯示圓點，12H顯示上/下
-            const indicator = document.getElementById('ampm-indicator');
-            if (use24Hour) {
-                indicator.innerHTML = '<div class="dot"></div>';
-            } else {
-                indicator.innerText = hh >= 12 ? "下" : "上";
+            // 防烙印邏輯：每分鐘微調顯示位置
+            if (mm !== lastMinute) {
+                const offsetX = Math.floor(Math.random() * 6) - 3; // -3px ~ 3px
+                const offsetY = Math.floor(Math.random() * 6) - 3;
+                document.getElementById('main-wrapper').style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                lastMinute = mm;
             }
 
-            let displayHH = use24Hour ? hh : (hh % 12 || 12);
+            const indicator = document.getElementById('ampm-indicator');
+            if (use24Hour) { indicator.innerHTML = '<div class="dot"></div>'; } 
+            else { indicator.innerText = hh >= 12 ? "下" : "上"; }
 
+            let displayHH = use24Hour ? hh : (hh % 12 || 12);
             document.getElementById('hh').innerText = String(displayHH).padStart(2, '0');
             document.getElementById('mm').innerText = String(mm).padStart(2, '0');
             document.getElementById('seconds').innerText = String(ss).padStart(2, '0');
